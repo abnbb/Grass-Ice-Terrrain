@@ -1,0 +1,133 @@
+#pragma kernel DeptCullGrass
+
+// 输入
+StructuredBuffer<float4x4> _AllMatrices;
+float3 _LocalMin;            // 模型空间包围盒最小点
+float3 _LocalMax;            // 模型空间包围盒最大点
+float4x4 _VPMatrix;          // 当前摄像机视图投影
+float4 _FrustumPlanes[6];    // 视锥平面（法线向内）
+Texture2D<float> _HiZBuffer;
+SamplerState sampler_HiZBuffer;
+float2 _HiZSize;             // 第0级像素尺寸
+float _ZNear, _ZFar;
+
+// 输出
+RWStructuredBuffer<float4x4> _OutputMatrices;
+RWStructuredBuffer<uint> _IndirectArgs; // [indexCountPerInstance, instanceCount, 0,0,0]
+
+// 工具函数：AABB 投影到屏幕矩形并返回最近深度
+void ScreenRectAndMinDepth(float3 wsMin, float3 wsMax, out float4 screenRect, out float minDepth)
+{
+    float4 corners[8];
+    corners[0] = mul(_VPMatrix, float4(wsMin.x, wsMin.y, wsMin.z, 1.0));
+    corners[1] = mul(_VPMatrix, float4(wsMin.x, wsMin.y, wsMax.z, 1.0));
+    corners[2] = mul(_VPMatrix, float4(wsMin.x, wsMax.y, wsMin.z, 1.0));
+    corners[3] = mul(_VPMatrix, float4(wsMin.x, wsMax.y, wsMax.z, 1.0));
+    corners[4] = mul(_VPMatrix, float4(wsMax.x, wsMin.y, wsMin.z, 1.0));
+    corners[5] = mul(_VPMatrix, float4(wsMax.x, wsMin.y, wsMax.z, 1.0));
+    corners[6] = mul(_VPMatrix, float4(wsMax.x, wsMax.y, wsMin.z, 1.0));
+    corners[7] = mul(_VPMatrix, float4(wsMax.x, wsMax.y, wsMax.z, 1.0));
+
+    float2 minUV = float2(1,1), maxUV = float2(0,0);
+    minDepth = 1.0;
+
+    for(int i=0; i<8; i++)
+    {
+        float4 clip = corners[i];
+        if(clip.w <= 0) continue; // 在摄像机后面
+        float3 ndc = clip.xyz / clip.w;
+        #if UNITY_UV_STARTS_AT_TOP
+        ndc.y = -ndc.y;
+        #endif
+        float2 uv = ndc.xy * 0.5 + 0.5;
+        minUV = min(minUV, uv);
+        maxUV = max(maxUV, uv);
+        // 使用线性深度
+        minDepth = min(minDepth, ndc.z); // 假设 ndc.z 是线性 0~1（近0远1）
+    }
+
+    screenRect = float4(minUV, maxUV);
+}
+
+// 快速 AABB 视锥剔除
+bool FrustumCull(float3 min, float3 max)
+{
+    for(int i=0; i<6; i++)
+    {
+        float4 plane = _FrustumPlanes[i];
+        float3 normal = plane.xyz;
+        float d = plane.w;
+        // 测试正顶点（离平面最远的点）
+        float3 p = min;
+        if(normal.x >= 0) p.x = max.x;
+        if(normal.y >= 0) p.y = max.y;
+        if(normal.z >= 0) p.z = max.z;
+        if(dot(normal, p) + d < 0) return true;
+    }
+    return false;
+}
+
+// 主内核
+[numthreads(64,1,1)]
+void CullGrass (uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    // 假设总实例数由外部传入，用 _InstanceCount 判断越界
+    // 这里省略越界检查，调用者需要保证 Dispatch 数量
+
+    float4x4 mat = _AllMatrices[index];
+
+    // 计算世界空间 AABB
+    float3 wsMin = mul(mat, float4(_LocalMin, 1.0)).xyz;
+    float3 wsMax = mul(mat, float4(_LocalMax, 1.0)).xyz;
+    // 更精确的 AABB 可通过8点变换求极值，这里简化为仅变换两个角点（可能不完全精确，但对草足够）
+    // 为简化，可以使用中心+半尺寸的近似，或直接8点变换（性能可接受）
+    float4 corners[8];
+    corners[0] = mul(mat, float4(_LocalMin.x, _LocalMin.y, _LocalMin.z, 1.0));
+    corners[1] = mul(mat, float4(_LocalMin.x, _LocalMin.y, _LocalMax.z, 1.0));
+    corners[2] = mul(mat, float4(_LocalMin.x, _LocalMax.y, _LocalMin.z, 1.0));
+    corners[3] = mul(mat, float4(_LocalMin.x, _LocalMax.y, _LocalMax.z, 1.0));
+    corners[4] = mul(mat, float4(_LocalMax.x, _LocalMin.y, _LocalMin.z, 1.0));
+    corners[5] = mul(mat, float4(_LocalMax.x, _LocalMin.y, _LocalMax.z, 1.0));
+    corners[6] = mul(mat, float4(_LocalMax.x, _LocalMax.y, _LocalMin.z, 1.0));
+    corners[7] = mul(mat, float4(_LocalMax.x, _LocalMax.y, _LocalMax.z, 1.0));
+    wsMin = corners[0].xyz; wsMax = corners[0].xyz;
+    for(int j=1; j<8; j++)
+    {
+        float3 p = corners[j].xyz;
+        wsMin = min(wsMin, p);
+        wsMax = max(wsMax, p);
+    }
+
+    // 1. 视锥剔除
+    if(FrustumCull(wsMin, wsMax)) return;
+
+    // 2. 屏幕空间矩形和最近深度
+    float4 screenRect;
+    float minDepth;
+    ScreenRectAndMinDepth(wsMin, wsMax, screenRect, minDepth);
+
+    // 全在屏幕外则剔除
+    if(screenRect.x >= screenRect.z || screenRect.y >= screenRect.w) return;
+
+    // 选择 Hi‑Z 的 Mip 级别（根据矩形像素尺寸）
+    float2 rectSize = (screenRect.zw - screenRect.xy) * _HiZSize;
+    float mip = clamp(log2(max(rectSize.x, rectSize.y)), 0, 9); // 最多9级
+
+    // 采样矩形四个角的 Hi‑Z 深度，取最大值
+    float z0 = _HiZBuffer.SampleLevel(sampler_HiZBuffer, float2(screenRect.x, screenRect.y), mip);
+    float z1 = _HiZBuffer.SampleLevel(sampler_HiZBuffer, float2(screenRect.z, screenRect.y), mip);
+    float z2 = _HiZBuffer.SampleLevel(sampler_HiZBuffer, float2(screenRect.x, screenRect.w), mip);
+    float z3 = _HiZBuffer.SampleLevel(sampler_HiZBuffer, float2(screenRect.z, screenRect.w), mip);
+    float maxDepth = max(max(z0, z1), max(z2, z3));
+
+    // 遮挡判断：如果实例的最近深度 > Hi‑Z 最大深度，则被遮挡
+    // (深度值越大代表越远)
+    if(minDepth > maxDepth) return;
+
+    // 通过剔除，写入输出缓冲区，并增加实例计数
+    uint outIndex = _IndirectArgs[1]; // 当前实例数量（需要原子操作）
+    uint newIndex;
+    InterlockedAdd(_IndirectArgs[1], 1, newIndex);
+    _OutputMatrices[newIndex] = mat;
+}

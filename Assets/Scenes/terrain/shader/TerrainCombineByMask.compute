@@ -1,0 +1,104 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CombineTerrain
+// #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Packing.hlsl"
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> _outDiff;
+RWTexture2D<float4> _outNormal;
+RWTexture2D<float4> _outMRO;
+Texture2D<float4> _mask;
+
+Texture2D<float4> _FirstDiff;
+Texture2D<float4> _FirstNormal;
+Texture2D<float4> _FirstMRO;
+
+Texture2DArray<float4> _DiffTexs;
+Texture2DArray<float4> _NormalTexs;
+Texture2DArray<float4> _RoughnessTexs;
+float4 _tillingOffset;
+int _layerCount;
+SamplerState sampler_LinearRepeat;
+SamplerState sampler_LinearClamp;
+
+float3 BlendNormalRNM(float3 n1, float3 n2)
+{
+    float3 t = n1.xyz + float3(0.0, 0.0, 1.0);
+    float3 u = n2.xyz * float3(-1.0, -1.0, 1.0);
+    float3 r = (t / t.z) * dot(t, u) - u;
+    return r;
+}
+
+float3 UnpackNormal(float4 N){
+    // float3 normal;
+    // normal.xy = N.ag * 2.0 - 1.0;
+    // normal.z = max(1.0e-16, sqrt(1.0 - saturate(dot(normal.xy, normal.xy))));
+    // return normal;
+    return lerp(float3(0,0,1),N.rgb*2-1, N.a);
+}
+
+float4 packNormal(float3 normal){
+    // float2 packedXY = normal.xy * 0.5 + 0.5;
+    // return float4(1.0, packedXY.y, 1.0, packedXY.x);
+    return float4(normal*0.5+0.5,1);
+}
+
+[numthreads(8,8,1)]
+void CombineTerrain (uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+    uint width, height;
+    _outDiff.GetDimensions(width, height);
+    
+    if(id.x>=width || id.y >= height) return;
+
+    float2 uv = float2(id.xy)/float2(width, height);
+    float2 mask_uv = uv*_tillingOffset.xy+_tillingOffset.zw;
+    float4 mask_value = _mask.SampleLevel(sampler_LinearClamp,float3(mask_uv, 0),0);
+
+    float3 FirstDiff = _FirstDiff.SampleLevel(sampler_LinearRepeat,float3(uv, 0),0).rgb;
+    float3 FirstNormal = UnpackNormal(_FirstNormal.SampleLevel(sampler_LinearRepeat,float3(uv, 0),0));
+    half FirstMRO = _FirstMRO.SampleLevel(sampler_LinearRepeat,float3(uv, 0),0).g;
+
+    // float3 FirstNormal = float3(0,0,1);
+    // half FirstMRO = 0;
+    // float3 BlendedNormal = FirstNormal;
+    // float3 finalColor = FirstDiff;
+    // half finalroughness = FirstMRO;
+    float3 BlendedNormal;
+    float3 finalColor;
+    half finalroughness;
+    float3 normal1;
+    int layers = 0;
+    if(_layerCount >= 1){
+        float3 diff1 = _DiffTexs.SampleLevel(sampler_LinearRepeat,float3(uv, layers),0).rgb;
+        normal1 = UnpackNormal(_NormalTexs.SampleLevel(sampler_LinearRepeat,float3(uv, layers),0));
+        half roughness1 = _RoughnessTexs.SampleLevel(sampler_LinearRepeat,float3(uv, layers),0).r;
+        BlendedNormal = lerp(FirstNormal,   BlendNormalRNM(FirstNormal,normal1), mask_value.r);
+        finalColor = lerp(FirstDiff, diff1, mask_value.r);
+        finalroughness = lerp(FirstMRO, roughness1, mask_value.r);
+    }
+    if(_layerCount >= 2){
+        layers = 1;
+        float3 diff2 = _DiffTexs.SampleLevel(sampler_LinearRepeat,float3(uv, layers),0).rgb;
+        float3 normal2 = UnpackNormal(_NormalTexs.SampleLevel(sampler_LinearRepeat,float3(uv, layers),0));
+        half roughness2 = _RoughnessTexs.SampleLevel(sampler_LinearRepeat,float3(uv, layers),0).r;
+        BlendedNormal = lerp(BlendedNormal, BlendNormalRNM(BlendedNormal,normal2), mask_value.g);
+        finalColor = lerp(finalColor, diff2, mask_value.g);
+        finalroughness = lerp(finalroughness, roughness2, mask_value.g);
+    }
+    if(_layerCount >= 3){
+        layers = 2;
+        float3 diff3 = _DiffTexs.SampleLevel(sampler_LinearRepeat,float3(uv, layers),0).rgb;
+        float3 normal3 = UnpackNormal(_NormalTexs.SampleLevel(sampler_LinearRepeat,float3(uv, layers),0)); 
+        half roughness3 = _RoughnessTexs.SampleLevel(sampler_LinearRepeat,float3(uv, layers),0).r;
+        BlendedNormal = lerp(BlendedNormal, BlendNormalRNM(BlendedNormal,normal3), mask_value.b);
+        finalColor = lerp(finalColor, diff3, mask_value.b);
+        finalroughness = lerp(finalroughness, roughness3, mask_value.b);
+    }
+
+    half3 mro = half3(0,finalroughness,1);
+    float4 packedNormal = packNormal(BlendedNormal);
+    _outDiff[id.xy]= float4(finalColor,1);
+    _outNormal[id.xy] = packedNormal;
+    _outMRO[id.xy] = float4(mro,1);
+}

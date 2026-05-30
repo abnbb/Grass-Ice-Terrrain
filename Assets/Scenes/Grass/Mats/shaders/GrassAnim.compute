@@ -1,0 +1,54 @@
+#pragma kernel AnimateGrass
+
+// 输入：原始矩阵数组（只读）
+StructuredBuffer<float4x4> _InputMatrices;
+// 输出：修改后的矩阵数组
+RWStructuredBuffer<float4x4> _OutputMatrices;
+// 输出：颜色数组（每个实例一个颜色）
+RWStructuredBuffer<float4> _OutputColors;
+
+// 动画参数
+float _RotationSpeed;       // 每秒旋转的角度
+float _Time;                // 当前时间（秒）
+float4 _NewColor;           // 要混合的新颜色
+float3 _Offset;
+
+[numthreads(64, 1, 1)]
+void AnimateGrass (uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+
+    float4x4 mat = _InputMatrices[index];
+
+    // ----- 1. 提取位置和缩放 -----
+    float3 pos = float3(mat[0].w, mat[1].w, mat[2].w)+_Offset;      // 最后一列前三行
+    // float3 scale = float3(
+    //     length(float3(mat[0].x, mat[1].x, mat[2].x)),
+    //     length(float3(mat[0].y, mat[1].y, mat[2].y)),
+    //     length(float3(mat[0].z, mat[1].z, mat[2].z))
+    // );
+
+    // ----- 2. 添加绕世界 Y 轴的旋转 -----
+    float angle = _Time * _RotationSpeed;    // 旋转角度
+    float3x3 rotY = float3x3(
+        cos(angle), 0, sin(angle),
+        0, 1, 0,
+        -sin(angle), 0, cos(angle)
+    );
+
+    // 构建新的旋转矩阵（保持缩放）
+    float3x3 newRot = mul(rotY, (float3x3)mat); // 先旋转再恢复原缩放
+
+    // ----- 3. 组装新矩阵 -----
+    float4x4 newMat;
+    newMat[0] = float4(newRot._m00, newRot._m01 , newRot._m02 , pos.x);
+    newMat[1] = float4(newRot._m10, newRot._m11 , newRot._m12 , pos.y);
+    newMat[2] = float4(newRot._m20, newRot._m21 , newRot._m22 , pos.z);
+    newMat[3] = float4(0, 0, 0, 1);
+
+    _OutputMatrices[index] = newMat;
+
+    // ----- 4. 颜色修改（简单混合） -----
+    // 原颜色从何处来？由于没有原始颜色数据，这里直接使用 _NewColor
+    _OutputColors[index] = _NewColor;
+}

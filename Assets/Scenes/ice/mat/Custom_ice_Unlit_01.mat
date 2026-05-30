@@ -1,0 +1,84 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Custom_ice_Unlit_01
+  m_Shader: {fileID: 4800000, guid: 28546ff221bbef8439faf619dd180127, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _EmissionMap:
+        m_Texture: {fileID: 2800000, guid: c3701a7d7603ce244a96c29093faaa86, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MainTex:
+        m_Texture: {fileID: 2800000, guid: a5e48cc5863d41b48b27bed8161a46c1, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _NoiseMap:
+        m_Texture: {fileID: 2800000, guid: 8eb96205985da4e4d886c844e21bb6bc, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _NormalMap:
+        m_Texture: {fileID: 2800000, guid: 1cf7066d6a7d46b4886fc2e39a0a3ef2, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _NormalSharpMap:
+        m_Texture: {fileID: 2800000, guid: dc1c1808811eeec48a154305115a5627, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SSSMap:
+        m_Texture: {fileID: 2800000, guid: c19b51e9664d66d47980025d30eb18a6, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SpecularMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ThicknessMap:
+        m_Texture: {fileID: 2800000, guid: e806acecc1e8730409a2d332a72a2c50, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _EmissionStrength: 2.8
+    - _FadeRange: 0.229
+    - _FadeScale: 0.264
+    - _FadeSpeed: 4.87
+    - _FresnelIntensity: 1.59
+    - _FresnelScale: 1.6
+    - _NoiseMapTilling: 8.74
+    - _NormalSharpIntensity: 1.43
+    - _NormalStrength: 2.5
+    - _SSSFocus: 7.2
+    - _SSSIntensity: 2.15
+    - _SSSMapTilling: 5.95
+    - _Shininess: 16.4
+    - _Specular: 2.9
+    - _SpecularIntensity: 0.772
+    m_Colors:
+    - _BaseColor: {r: 0.5686275, g: 0.6745098, b: 0.83137256, a: 1}
+    - _BottomColor: {r: 0.8915094, g: 0.9675672, b: 1, a: 1}
+    - _EmissionColor: {r: 0, g: 0.26924193, b: 0.8980392, a: 1}
+    - _FresnelColor: {r: 0.9056604, g: 0.9056604, b: 0.9056604, a: 1}
+    - _NoiseColor: {r: 0.37201852, g: 0.60980296, b: 0.8301887, a: 1}
+    - _NormalSharpColor: {r: 0.6933962, g: 0.9448915, b: 1, a: 1}
+    - _SSSColor: {r: 0.68668544, g: 0.76052475, b: 0.9386859, a: 1}
+    - _SpecularColor: {r: 0.9339623, g: 0.9339623, b: 0.9339623, a: 1}
+  m_BuildTextureStacks: []

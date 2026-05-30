@@ -1,0 +1,32 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel DepthCulling
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+Texture2D<float> _CameraDepthTexture; // 深度图，单通道float
+float4x4 _VPMatrix;
+float4 _ScreenSize; // x: width, y: height, z: 1/width, w: 1/height
+
+
+RWStructuredBuffer<float4> _inputBuffer;
+AppendStructuredBuffer<float4> _CulledVisibleBuffer;
+
+[numthreads(64,1,1)]
+void DepthCulling (uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    float4 clipPos = mul(_VPMatrix, float4(_inputBuffer[index].xyz,1));
+    float3 ndc_pos = clipPos.xyz/clipPos.w;
+    float ndc_z_01 = ndc_pos.z;
+    float2 uv = (ndc_pos.xy+1)/2;
+    if (clipPos.z < 0.0 || clipPos.w == 0.0)
+    {
+        return;
+    }
+    float2 screen_uv = float2(uv.x*_ScreenSize.x, uv.y*_ScreenSize.y);
+    float depthMap = _CameraDepthTexture.Load(float3(screen_uv,0)).r;
+
+    if(ndc_z_01>depthMap){
+        _CulledVisibleBuffer.Append(_inputBuffer[index]);
+    }
+}

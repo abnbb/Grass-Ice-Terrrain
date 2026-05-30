@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cb8c0eb2fd972af42a11186a546c2a61, type: 3}
+  m_Name: redLayer
+  m_EditorClassIdentifier: 
+  DiffuseMap: {fileID: 2800000, guid: 55108db2947de2c4985aaeb2fa5d6b4a, type: 3}
+  normalMap: {fileID: 2800000, guid: 66a761642a22b9c40899635db13db82b, type: 3}
+  roughnessMap: {fileID: 2800000, guid: 24a6ea14629cab24095051f36c00e2dd, type: 3}
+  size: {x: 1, y: 1}
+  offset: {x: 0, y: 0}
+  metallic: 0
+  roughness: 0

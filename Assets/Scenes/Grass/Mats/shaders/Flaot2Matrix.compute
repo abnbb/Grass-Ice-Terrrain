@@ -1,0 +1,32 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel F2M
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+StructuredBuffer<float4> _packedInfo;
+RWStructuredBuffer<float4x4> _WMatrix;
+float _maxScale;
+
+[numthreads(64,1,1)]
+void F2M (uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    float3 pos = _packedInfo[index].xyz;
+    uint bits = asuint(_packedInfo[index].w);
+    uint rot16 = (bits >> 16) & 0xFFFF;
+    uint scale16 = bits & 0xFFFF;
+    float rotY = (rot16 / 65535.0) * 360.0;        // 度
+    float scale = (scale16 / 65535.0) * _maxScale;
+
+    float rad = radians(rotY);
+    float s, c;
+    sincos(rad, s, c);
+
+    float4x4 newMat;
+    newMat[0] = float4(c * scale , 0    , s * scale , pos.x);
+    newMat[1] = float4(0         , scale,  0        , pos.y);
+    newMat[2] = float4(-s * scale, 0     , c * scale, pos.z);
+    newMat[3] = float4(0         , 0     , 0       ,      1);
+
+    _WMatrix[index] = newMat;
+}
