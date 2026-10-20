@@ -57,21 +57,21 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _EmissionStrength: 2.8
-    - _FadeRange: 0.229
+    - _EmissionStrength: 2.35
+    - _FadeRange: 0.226
     - _FadeScale: 0.264
     - _FadeSpeed: 4.87
-    - _FresnelIntensity: 1.59
+    - _FresnelIntensity: 1.42
     - _FresnelScale: 1.6
     - _NoiseMapTilling: 8.74
-    - _NormalSharpIntensity: 1.43
-    - _NormalStrength: 2.5
+    - _NormalSharpIntensity: 0.29
+    - _NormalStrength: 2.58
     - _SSSFocus: 7.2
     - _SSSIntensity: 2.15
     - _SSSMapTilling: 5.95
     - _Shininess: 16.4
     - _Specular: 2.9
-    - _SpecularIntensity: 0.772
+    - _SpecularIntensity: 0.132
     m_Colors:
     - _BaseColor: {r: 0.5686275, g: 0.6745098, b: 0.83137256, a: 1}
     - _BottomColor: {r: 0.8915094, g: 0.9675672, b: 1, a: 1}

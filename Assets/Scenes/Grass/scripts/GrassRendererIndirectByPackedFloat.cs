@@ -28,7 +28,7 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
     public float LODDistance = 40f;
 
     [Header("包围盒（模型空间）")]
-    public Vector3 boundsExtents = new Vector3(0,0,0); // 半尺寸
+    public float boundsExtents = 0f; // 半尺寸
     public ComputeShader grassMatrix;
     public ComputeShader DepthCulling;
 
@@ -141,6 +141,7 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
         if (!initialized) return;
 
         Camera cam = Camera.main;
+
         if (cam == null) return;
         
         Vector3 camPos = cam.transform.position;
@@ -149,49 +150,59 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
         Matrix4x4 pMatrix = GL.GetGPUProjectionMatrix(cam.projectionMatrix, false);
         Matrix4x4 vpMatrix = pMatrix * vMatrix;
         visibleCount=0;
-        foreach(Vector4 p in allPackedData)
-        {
-            Vector3 pos = new Vector3(p.x, p.y, p.z);
+        // foreach(Vector4 p in allPackedData)
+        // {
+        //     Vector3 pos = new Vector3(p.x, p.y, p.z);
 
-            // 距离剔除（水平距离）
-            float distance = Vector3.Distance(pos,camPos);
-            if (distance < cullDistance)
-            {
-                visibleData[visibleCount++]=p;
-            }
+        //     // 距离剔除（水平距离）
+        //     float distance = Vector3.Distance(pos,camPos);
+        //     if (distance < cullDistance)
+        //     {
+        //         visibleData[visibleCount++]=p;
+        //     }
 
-        }
-        //剔除
-        intputFloat4Buffer.SetData(visibleData,0,0,visibleCount);
-        DepthCulling.SetBuffer(CullingKernel,"_inputBuffer",intputFloat4Buffer);
-        DepthCulling.SetBuffer(CullingKernel,"_CulledVisibleBuffer",outputFloat4BufferLOD0);
-        DepthCulling.SetMatrix("_VPMatrix", vpMatrix);
-        DepthCulling.SetVector("_ScreenSize", new Vector4(cam.pixelWidth, cam.pixelHeight, 1.0f / cam.pixelWidth, 1.0f / cam.pixelHeight));
+        // }
+        //剔除 距离 + 深度 +LOD划分
+
         Texture depthTex = Shader.GetGlobalTexture("_CameraDepthTexture");
+
+
+
+
+        intputFloat4Buffer.SetData(allPackedData,0,0,totalCount);
+        DepthCulling.SetVector("_camPos", new Vector4(camPos.x, camPos.y, camPos.z, cullDistance));
+        // DepthCulling.SetFloat("_cullDistance",cullDistance);
+        DepthCulling.SetBuffer(CullingKernel,"_inputBuffer",intputFloat4Buffer);
+        DepthCulling.SetBuffer(CullingKernel,"_CulledVisibleBufferLOD0",outputFloat4BufferLOD0);
+        DepthCulling.SetBuffer(CullingKernel,"_CulledVisibleBufferLOD2",outputFloat4BufferLOD2);
+        DepthCulling.SetMatrix("_VPMatrix", vpMatrix);
+        DepthCulling.SetVector("_ScreenSize", new Vector4(cam.pixelWidth, cam.pixelHeight, boundsExtents,LODDistance));
+        
         if (depthTex != null)
         {
             DepthCulling.SetTexture(CullingKernel, "_CameraDepthTexture", depthTex);
         }
-        int threadGroups = Mathf.CeilToInt(visibleCount / 64.0f);
+        int threadGroups = Mathf.CeilToInt(totalCount / 64.0f);
         DepthCulling.Dispatch(CullingKernel, threadGroups, 1, 1);
 
-        outputFloat4BufferLOD0.GetData(UnCulledData);
-        int lod2Count = 0;
-        int lod0Count = 0;
-        foreach(Vector4 p in UnCulledData)
-        {
-            Vector3 pos = new Vector3(p.x, p.y, p.z);
+        outputFloat4BufferLOD0.GetData(LODData);
+        outputFloat4BufferLOD2.GetData(LODData2);
+        int lod2Count = LODData2.Length;
+        int lod0Count = LODData.Length;
+        // foreach(Vector4 p in UnCulledData)
+        // {
+        //     Vector3 pos = new Vector3(p.x, p.y, p.z);
 
-            // 距离剔除（水平距离）
-            float distance = Vector3.Distance(pos,camPos);
-            if (distance > LODDistance) {
-                LODData2[lod2Count++]= p;
-            }
-            else
-            {
-                LODData[lod0Count++]= p;
-            }
-        }
+        //     // LOD划分
+        //     float distance = Vector3.Distance(pos,camPos);
+        //     if (distance > LODDistance) {
+        //         LODData2[lod2Count++]= p;
+        //     }
+        //     else
+        //     {
+        //         LODData[lod0Count++]= p;
+        //     }
+        // }
 
         //LOD两级
         if(lod0Count != 0)

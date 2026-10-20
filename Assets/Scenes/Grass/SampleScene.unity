@@ -241,13 +241,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.04869467, y: 0.025102433, z: -0.010521966, w: -0.9984428}
+  m_LocalRotation: {x: -0.048663415, y: 0.028060678, z: -0.010666232, w: -0.99836403}
   m_LocalPosition: {x: -1.06, y: 1.5, z: -11.11}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 5.611, y: -2.828, z: 1.069}
+  m_LocalEulerAnglesHint: {x: 5.611, y: -3.168, z: 1.069}
 --- !u!114 &330585547
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -328,14 +328,14 @@ MonoBehaviour:
   grassMeshLOD2: {fileID: 7554611901844255571, guid: 52d96b7d025d5fd4eafe876ca8e378ec,
     type: 3}
   grassMaterialLOD2: {fileID: 2100000, guid: 1bfd8ddd962672a48a061119b4655a43, type: 2}
-  cullDistance: 15.6
+  cullDistance: 110.6
   enableCulling: 1
   ShowGizmo: 1
   castShadows: 1
   receiveShadows: 1
   layer: 0
-  LODDistance: 11.6
-  boundsExtents: {x: 0, y: 0, z: 0}
+  LODDistance: 14.4
+  boundsExtents: 0.1
   grassMatrix: {fileID: 7200000, guid: 8f07d32482aeb8c46a75c621cd193b94, type: 3}
   DepthCulling: {fileID: 7200000, guid: 3f3a65906ac45e24f82e948378208fb8, type: 3}
 --- !u!4 &356562399

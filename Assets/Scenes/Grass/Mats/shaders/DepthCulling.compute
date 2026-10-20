@@ -5,28 +5,55 @@
 // with cs.SetTexture
 Texture2D<float> _CameraDepthTexture; // 深度图，单通道float
 float4x4 _VPMatrix;
-float4 _ScreenSize; // x: width, y: height, z: 1/width, w: 1/height
-
+float4 _ScreenSize; 
+SamplerState depth_point_clamp_sampler;
+float4 _camPos;
 
 RWStructuredBuffer<float4> _inputBuffer;
-AppendStructuredBuffer<float4> _CulledVisibleBuffer;
+AppendStructuredBuffer<float4> _CulledVisibleBufferLOD0;
+AppendStructuredBuffer<float4> _CulledVisibleBufferLOD2;
 
 [numthreads(64,1,1)]
 void DepthCulling (uint3 id : SV_DispatchThreadID)
 {
     uint index = id.x;
-    float4 clipPos = mul(_VPMatrix, float4(_inputBuffer[index].xyz,1));
+    
+    float lodDistance = _ScreenSize.w; // Assuming _ScreenSize.w is used for LOD distance, adjust as needed
+   
+    float boundsExtents = _ScreenSize.z; // Assuming _ScreenSize.z is used for bounds extents, adjust as needed
+    float3 pos = _inputBuffer[index].xyz;
+    float3 posUp = pos + float3(0, boundsExtents, 0);
+    float distance = pow(pos.x - _camPos.x, 2) + pow(pos.z - _camPos.z, 2);
+    if(distance > _camPos.w){
+        return;
+    }
+    float4 clipPos = mul(_VPMatrix, float4(pos,1));
+    float4 clipPosUp = mul(_VPMatrix, float4(posUp,1));
     float3 ndc_pos = clipPos.xyz/clipPos.w;
+    float3 ndc_posUp = clipPosUp.xyz/clipPosUp.w;
     float ndc_z_01 = ndc_pos.z;
+    float ndc_z_01_up = ndc_posUp.z;
     float2 uv = (ndc_pos.xy+1)/2;
-    if (clipPos.z < 0.0 || clipPos.w == 0.0)
+    float2 uv_up = (ndc_posUp.xy+1)/2;
+    if (clipPos.z <= 0.0 || clipPos.w == 0.0)
     {
         return;
     }
     float2 screen_uv = float2(uv.x*_ScreenSize.x, uv.y*_ScreenSize.y);
+    float2 screen_uv_up = float2(uv_up.x*_ScreenSize.x, uv_up.y*_ScreenSize.y);
     float depthMap = _CameraDepthTexture.Load(float3(screen_uv,0)).r;
+    float depthMapUp = _CameraDepthTexture.Load(float3(screen_uv_up,0)).r;
+    // float depthMap = max(depthMapDown, depthMapUp);
+    // float depthMap = _CameraDepthTexture.SampleLevel(
+    //     depth_point_clamp_sampler, screen_uv, 0
+    // ).r;
 
     if(ndc_z_01>depthMap){
-        _CulledVisibleBuffer.Append(_inputBuffer[index]);
+        if(distance < lodDistance){
+            _CulledVisibleBufferLOD0.Append(_inputBuffer[index]);
+        }else{
+            _CulledVisibleBufferLOD2.Append(_inputBuffer[index]);
+        }
+        
     }
 }
