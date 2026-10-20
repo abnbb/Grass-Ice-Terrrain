@@ -31,6 +31,7 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
     public float boundsExtents = 0f; // 半尺寸
     public ComputeShader grassMatrix;
     public ComputeShader DepthCulling;
+    public ComputeShader GenHiz;
 
     // GPU 资源
     // private ComputeShader cullingCompute;
@@ -119,6 +120,7 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
 
         F2Mkernel = grassMatrix.FindKernel("F2M");
         CullingKernel = DepthCulling.FindKernel("DepthCulling");
+        GenHizKernel = GenHiz.FindKernel("GenHiz");
         maxscale = PackedAsset.maxScale;
 
         initialized = true;
@@ -166,6 +168,29 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
 
         Texture depthTex = Shader.GetGlobalTexture("_CameraDepthTexture");
 
+        RenderTexture hiZ = new RenderTexture(1024, 1024, 0, RenderTextureFormat.RFloat);
+
+        hiZ.enableRandomWrite = true;
+        hiZ.useMipMap = true;
+        hiZ.autoGenerateMips = false;
+        hiZ.antiAliasing = 1;
+        hiZ.filterMode = FilterMode.Point;
+        hiZ.Create();
+
+        Graphics.Blit(depthTex, hiZ);
+
+        for(int mip = 0; mip<hiZ.mipmapCount-1; mip++)
+        {
+            int width = Mathf.Max(1, hiZ.width >> mip);
+            int height = Mathf.Max(1, hiZ.height >> mip);
+            int mapSize = min(width, height);
+
+            GenHizKernel.setInt("_mip", mip);
+            GenHizKernel.setInt("_mapSize", mapSize);
+            GenHizKernel.SetTexture(GenHizKernel, "_destinateMap", hiZ,mip+1);
+            GenHizKernel.SetTexture(GenHizKernel, "_resourceMap", hiZ);
+            GenHiz.Dispatch(GenHizKernel, Mathf.CeilToInt(width/8.0f), Mathf.CeilToInt(height/8.0f), 1);
+        }
 
 
 
