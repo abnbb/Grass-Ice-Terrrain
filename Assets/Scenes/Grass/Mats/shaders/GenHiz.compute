@@ -4,7 +4,7 @@
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWTexture2D<float> _destinateMap;
-Texture2D<float4> _resourceMap; //RWTexture2D 对应某一级视图  不能读取任意mip
+RWTexture2D<float> _resourceMap; //RWTexture2D 
 int _mip;
 int _mapSize;
 
@@ -15,13 +15,18 @@ void GenHiz (uint3 id : SV_DispatchThreadID)
         return;
     }
     int2 srcuv = id.xy*2; //各两格才采样原始贴图
+    // int2 srcuv = id.xy;
     // TODO: insert actual code here!
-    float a = _resourceMap.Load(float3(srcuv+int2(0,0),_mip)).x;
-    float b = _resourceMap.Load(float3(srcuv+int2(1,0),_mip)).x;
-    float c = _resourceMap.Load(float3(srcuv+int2(0,1),_mip)).x;
-    float d = _resourceMap.Load(float3(srcuv+int2(1,1),_mip)).x;
-
+    float a = _resourceMap.Load(int3(srcuv+int2(0,0),0)).x;
+    float b = _resourceMap.Load(int3(srcuv+int2(1,0),0)).x;
+    float c = _resourceMap.Load(int3(srcuv+int2(0,1),0)).x;
+    float d = _resourceMap.Load(int3(srcuv+int2(1,1),0)).x;
+    
+    
     float nearestDepth = max(max(a,b),max(c,d));
-    _destinateMap[id.xy] = nearestDepth;
+    
+    // float a = _resourceMap.Load(float3(srcuv,1)).x;
+    
+    _destinateMap[id.xy] = a;
     
 }

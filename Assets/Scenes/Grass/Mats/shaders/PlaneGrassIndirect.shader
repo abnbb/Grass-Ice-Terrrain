@@ -36,6 +36,7 @@ Shader "Custom/PlaneGrassIndirect"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Input.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            // #include  "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
 
             struct appdata
             {
@@ -197,7 +198,7 @@ Shader "Custom/PlaneGrassIndirect"
                     o.vertex = ApplyShadowBias(o.vertex, worldPos.xyz, lightDir, 0);
                 #else
                     float3 lightDir = normalize(_MainLightPosition.xyz);
-                    o.vertex = ApplyShadowBias(o.vertex, worldPos.xyz, lightDir, 0);
+                    o.vertex.xyz = ApplyShadowBias(o.vertex, worldPos.xyz, lightDir);
                 #endif
 
                 return o;

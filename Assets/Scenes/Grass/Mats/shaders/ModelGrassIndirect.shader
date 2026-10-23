@@ -201,7 +201,7 @@ Shader "Custom/ModelGrassIndirect"
                     o.vertex = ApplyShadowBias(o.vertex, worldPos.xyz, lightDir, 0);
                 #else
                     float3 lightDir = normalize(_MainLightPosition.xyz);
-                    o.vertex = ApplyShadowBias(o.vertex, worldPos.xyz, lightDir, 0);
+                    o.vertex.xyz = ApplyShadowBias(o.vertex, worldPos.xyz, lightDir);
                 #endif
 
                 return o;

@@ -32,8 +32,6 @@ Shader "Custom/ModleGrass"
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _SHADOWS_SOFT
 
-            #pragma shader_feature _MAIN_LIGHT_SHADOWS
-
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Input.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -129,6 +127,9 @@ Shader "Custom/ModleGrass"
         {
             Name "ShadowCaster"
             Tags { "LightMode" = "ShadowCaster" }
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
 
             HLSLPROGRAM
             #pragma vertex vert
@@ -137,12 +138,17 @@ Shader "Custom/ModleGrass"
             #pragma multi_compile _ _CASTING_PUNCTUAL_LIGHT_SHADOW
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+
+            float3 _LightDirection;
+            float3 _LightPosition;
 
             struct appdata
             {
                 float4 vertex : POSITION;
                 float4 color : COLOR;
+                float3 normal : NORMAL;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -154,7 +160,12 @@ Shader "Custom/ModleGrass"
             TEXTURE2D(_NoiseMap);
             SAMPLER(sampler_NoiseMap);
             CBUFFER_START(UnityPerMaterial)
+                float4 _MainTex_ST;
                 float _NoiseInten;
+                float _Specualr;
+                float _SpecularIntensity;
+                float4 _SpecualrColor;
+                float4 _BaseColor;
             CBUFFER_END
 
             // 顶点动画函数（与主Pass相同）
@@ -180,14 +191,20 @@ Shader "Custom/ModleGrass"
                 float3 worldPos = TransformObjectToWorld(v.vertex.xyz);
                 worldPos += ApplyVertexAnimation(worldPos, v.color.r);
 
-                // 阴影投射需要应用深度偏移（Unity处理）
-                o.vertex = TransformWorldToHClip(worldPos);
+                // Apply the shadow bias in world space before projection.
+                float3 normalWS = TransformObjectToWorldNormal(v.normal);
                 #if _CASTING_PUNCTUAL_LIGHT_SHADOW
-                    float3 lightDir = normalize(_MainLightPosition.xyz);
-                    o.vertex = ApplyShadowBias(o.vertex, worldPos, lightDir, 0);
+                    float3 lightDir = normalize(_LightPosition - worldPos);
                 #else
-                    float3 lightDir = normalize(_MainLightPosition.xyz);
-                    o.vertex = ApplyShadowBias(o.vertex, worldPos, lightDir, 0);
+                    float3 lightDir = _LightDirection;
+                #endif
+                o.vertex = TransformWorldToHClip(ApplyShadowBias(worldPos, normalWS, lightDir));
+
+                // Match the URP 14 shadow caster's near-plane clamp.
+                #if UNITY_REVERSED_Z
+                    o.vertex.z = min(o.vertex.z, UNITY_NEAR_CLIP_VALUE);
+                #else
+                    o.vertex.z = max(o.vertex.z, UNITY_NEAR_CLIP_VALUE);
                 #endif
 
                 return o;
