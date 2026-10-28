@@ -3,7 +3,7 @@
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
-Texture2D<float> _CameraDepthTexture; // 深度图，单通道float
+RWTexture2D<float> _CameraDepthTexture; // 深度图，单通道float
 float4x4 _VPMatrix;
 float4 _ScreenSize; 
 SamplerState depth_point_clamp_sampler;
@@ -24,6 +24,7 @@ void DepthCulling (uint3 id : SV_DispatchThreadID)
     float lodDistance = _ScreenSize.w*_ScreenSize.w; // Assuming _ScreenSize.w is used for LOD distance, adjust as needed
    
     float boundsExtents = _ScreenSize.z; // Assuming _ScreenSize.z is used for bounds extents, adjust as needed
+    
     float3 pos = _inputBuffer[index].xyz;
     float distance = pow(pos.x - _camPos.x, 2) + pow(pos.z - _camPos.z, 2);
     
@@ -31,7 +32,10 @@ void DepthCulling (uint3 id : SV_DispatchThreadID)
     {
         return;
     }
-    float4 clipPos = mul(_VPMatrix, float4(pos, 1));
+    float3 camDir = normalize(_camPos.xyz - pos.xyz);
+    //camDir = dot(camDir, float3(1, 0, 1));
+    float3 boundPos = pos + camDir * boundsExtents*0.001;
+    float4 clipPos = mul(_VPMatrix, float4(boundPos, 1));
     if (clipPos.z <= 0.0 || clipPos.w <= 0.0)
     {
        return;
@@ -39,8 +43,20 @@ void DepthCulling (uint3 id : SV_DispatchThreadID)
     float3 ndc_pos = clipPos.xyz / clipPos.w;
     float ndc_z_01 = ndc_pos.z;
     float2 uv = (ndc_pos.xy + 1) / 2;
+    float boundRadius = 4 * boundsExtents * clipPos.w;
+    int width = _ScreenSize.x;
+    int mip = 1;
+    for (; mip <= 10; mip++)
+    {
+        width >> mip;
+        if (width > boundRadius)
+        {
+            break;
+        }
+    }
+    
     float2 screen_uv = float2(uv.x * _ScreenSize.x, uv.y * _ScreenSize.y);
-    float depthMap = _CameraDepthTexture.Load(float3(screen_uv,0)).r;
+    float depthMap = _CameraDepthTexture.Load(float3(screen_uv,mip)).r;
 
     if(ndc_z_01>=depthMap){
       if(distance < lodDistance){
