@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using System.Collections.Generic;
+using UnityEditor;
 
 [ExecuteAlways]
 public class GrassRendererIndirectByPackedFloat : MonoBehaviour
@@ -17,6 +18,7 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
     // public Vector3 localBoundsMax = new Vector3(0.1f, 0.3f, 0.1f);
 
     [Header("剔除设置")]
+    public Camera cam;
     public float cullDistance = 80f;
     public bool enableCulling = true;
 
@@ -48,11 +50,14 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
     private GraphicsBuffer indirectArgsBuffer2;
     private uint[] indirectArgs = new uint[5];
     private uint[] indirectArgs2 = new uint[5];
+    private int[] lodCountArray = new int[2];
 
     private int F2Mkernel;
     private int CullingKernel;
     private int GenHizKernel;
     private float maxscale;
+    private int lod2Count;
+    private int lod0Count;
 
     private ComputeBuffer intputFloat4Buffer;
     private ComputeBuffer outputFloat4BufferLOD0;
@@ -60,6 +65,8 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
 
     private ComputeBuffer outputFloat4BufferLOD2;
     private ComputeBuffer outputMatrixBufferLOD2;
+
+    private ComputeBuffer lodCountBuffer;
 
     private RenderTexture hiZ;
     
@@ -93,6 +100,11 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
         
         if(!grassMatrix) return;
 
+        if(cam == null)
+        {
+            cam = Camera.main;
+        }
+
         totalCount = PackedAsset.packedData.Length;
         allPackedData = PackedAsset.packedData;
 
@@ -103,13 +115,15 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
 
         intputFloat4Buffer = new ComputeBuffer(totalCount, sizeof(float)*4);
 
-        outputFloat4BufferLOD0 = new ComputeBuffer(totalCount, sizeof(float)*4);
+        outputFloat4BufferLOD0 = new ComputeBuffer(totalCount, sizeof(float)*4, ComputeBufferType.Append);
         outputMatrixBufferLOD0 = new ComputeBuffer(totalCount, sizeof(float)*16);
 
-        outputFloat4BufferLOD2 = new ComputeBuffer(totalCount, sizeof(float)*4);
+        outputFloat4BufferLOD2 = new ComputeBuffer(totalCount, sizeof(float)*4, ComputeBufferType.Append);
         outputMatrixBufferLOD2 = new ComputeBuffer(totalCount, sizeof(float)*16);
 
-        
+        lodCountBuffer = new ComputeBuffer(2,sizeof(int),ComputeBufferType.Raw);
+
+
         indirectArgsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, 1, indirectArgs.Length * sizeof(uint));
         indirectArgs[0] = grassMeshLOD0.GetIndexCount(0);
         indirectArgs[1] = 0;//count
@@ -138,6 +152,9 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
         hiZ.antiAliasing = 1;
         hiZ.filterMode = FilterMode.Point;
         hiZ.Create();
+
+
+        intputFloat4Buffer.SetData(allPackedData, 0, 0, totalCount);
     }
 
     void ReleaseBuffers()
@@ -150,13 +167,21 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
         outputFloat4BufferLOD0?.Release();
         outputMatrixBufferLOD2?.Release();
         outputFloat4BufferLOD2?.Release();
+        lodCountBuffer?.Release();
+
+        outputMatrixBufferLOD0 = null;
+        outputFloat4BufferLOD0= null;
+        outputMatrixBufferLOD2= null;
+        outputFloat4BufferLOD2= null;
+        lodCountBuffer = null; 
+        RenderTexture.DestroyImmediate(hiZ);
     }
 
     void Update()
     {
         if (!initialized) return;
 
-        Camera cam = Camera.main;
+        
 
         if (cam == null) return;
         
@@ -182,10 +207,6 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
 
         Texture depthTex = Shader.GetGlobalTexture("_CameraDepthTexture");
 
-        
-
-        
-
         Graphics.Blit(depthTex, hiZ);
 
         for(int mip = 1; mip<hiZ.mipmapCount; mip++)
@@ -198,7 +219,7 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
             GenHiz.SetInt("_mapSize", mapSize);
             GenHiz.SetTexture(GenHizKernel, "_destinateMap", hiZ,mip);
             GenHiz.SetTexture(GenHizKernel, "_resourceMap", hiZ, mip-1);
-            GenHiz.Dispatch(GenHizKernel, Mathf.CeilToInt((width+7)/8.0f), Mathf.CeilToInt((height+7)/8.0f), 1);
+            GenHiz.Dispatch(GenHizKernel, Mathf.CeilToInt(width/8.0f), Mathf.CeilToInt(height/8.0f), 1);
         }
 
         if (debugMaterial != null)
@@ -206,52 +227,46 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
             debugMaterial.SetTexture("HizMap", hiZ);
         }
 
-        intputFloat4Buffer.SetData(allPackedData,0,0,totalCount);
+        outputFloat4BufferLOD0.SetCounterValue(0);
+        outputFloat4BufferLOD2.SetCounterValue(0);
+        
         DepthCulling.SetVector("_camPos", new Vector4(camPos.x, camPos.y, camPos.z, cullDistance));
-        // DepthCulling.SetFloat("_cullDistance",cullDistance);
+        DepthCulling.SetInt("_totalCount", totalCount);
         DepthCulling.SetBuffer(CullingKernel,"_inputBuffer",intputFloat4Buffer);
         DepthCulling.SetBuffer(CullingKernel,"_CulledVisibleBufferLOD0",outputFloat4BufferLOD0);
         DepthCulling.SetBuffer(CullingKernel,"_CulledVisibleBufferLOD2",outputFloat4BufferLOD2);
         DepthCulling.SetMatrix("_VPMatrix", vpMatrix);
-        DepthCulling.SetVector("_ScreenSize", new Vector4(cam.pixelWidth, cam.pixelHeight, boundsExtents,LODDistance));
-        
+        DepthCulling.SetVector("_ScreenSize", new Vector4(hiZ.width, hiZ.height, boundsExtents,LODDistance));
+
         if (depthTex != null)
         {
-            DepthCulling.SetTexture(CullingKernel, "_CameraDepthTexture", depthTex);
+            DepthCulling.SetTexture(CullingKernel, "_CameraDepthTexture", hiZ,0);
         }
-        int threadGroups = Mathf.CeilToInt(totalCount / 64.0f);
+
+
+    int threadGroups = Mathf.CeilToInt(totalCount / 64.0f);
         DepthCulling.Dispatch(CullingKernel, threadGroups, 1, 1);
 
-        outputFloat4BufferLOD0.GetData(LODData);
-        outputFloat4BufferLOD2.GetData(LODData2);
-        int lod2Count = LODData2.Length;
-        int lod0Count = LODData.Length;
-        // foreach(Vector4 p in UnCulledData)
-        // {
-        //     Vector3 pos = new Vector3(p.x, p.y, p.z);
+        ComputeBuffer.CopyCount(outputFloat4BufferLOD0, lodCountBuffer, 0);
+        ComputeBuffer.CopyCount(outputFloat4BufferLOD2, lodCountBuffer, sizeof(int));
 
-        //     // LOD划分
-        //     float distance = Vector3.Distance(pos,camPos);
-        //     if (distance > LODDistance) {
-        //         LODData2[lod2Count++]= p;
-        //     }
-        //     else
-        //     {
-        //         LODData[lod0Count++]= p;
-        //     }
-        // }
+        lodCountBuffer.GetData(lodCountArray);
+        lod0Count = lodCountArray[0];
+        lod2Count = lodCountArray[1];
+        //Debug.Log($"lod0count:{lod0Count},lod2Count{lod2Count}");
+
 
         //LOD两级
-        if(lod0Count != 0)
+        if (lod0Count != 0)
         {
             // 浮点数据转M矩阵
-            outputFloat4BufferLOD0.SetData(LODData,0,0,lod0Count);
             grassMatrix.SetBuffer(F2Mkernel, "_packedInfo", outputFloat4BufferLOD0);
             grassMatrix.SetBuffer(F2Mkernel, "_WMatrix", outputMatrixBufferLOD0);
+            grassMatrix.SetInt("_totalCount", lod0Count);
             grassMatrix.SetFloat("_maxScale", maxscale);
             threadGroups = Mathf.CeilToInt(lod0Count / 64.0f);
             grassMatrix.Dispatch(F2Mkernel, threadGroups, 1, 1);
-            
+
             indirectArgs[1] = (uint)lod0Count;
             indirectArgsBuffer.SetData(indirectArgs);
 
@@ -266,13 +281,13 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
                 indirectArgsBuffer, 0, null, castShadows, receiveShadows, layer
             );
         }
-        if(lod2Count !=0)
+        if (lod2Count != 0)
         {
             //浮点数据转M矩阵
-            outputFloat4BufferLOD2.SetData(LODData2,0,0,lod2Count); 
             grassMatrix.SetBuffer(F2Mkernel, "_packedInfo", outputFloat4BufferLOD2);
             grassMatrix.SetBuffer(F2Mkernel, "_WMatrix", outputMatrixBufferLOD2);
             grassMatrix.SetFloat("_maxScale", maxscale);
+            grassMatrix.SetInt("_totalCount", lod2Count);
             threadGroups = Mathf.CeilToInt(lod2Count / 64.0f);
             grassMatrix.Dispatch(F2Mkernel, threadGroups, 1, 1);
 
@@ -290,6 +305,6 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
                 indirectArgsBuffer2, 0, null, castShadows, receiveShadows, layer
             );
         }
-        // RenderTexture.DestroyImmediate(hiZ);
+
     }
 }

@@ -6,11 +6,14 @@
 StructuredBuffer<float4> _packedInfo;
 RWStructuredBuffer<float4x4> _WMatrix;
 float _maxScale;
+int _totalCount;
 
 [numthreads(64,1,1)]
 void F2M (uint3 id : SV_DispatchThreadID)
 {
     uint index = id.x;
+    if (index >= _totalCount)
+        return;
     float3 pos = _packedInfo[index].xyz;
     uint bits = asuint(_packedInfo[index].w);
     uint rot16 = (bits >> 16) & 0xFFFF;

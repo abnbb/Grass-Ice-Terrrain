@@ -23,10 +23,10 @@ void GenHiz (uint3 id : SV_DispatchThreadID)
     float d = _resourceMap.Load(int3(srcuv+int2(1,1),0)).x;
     
     
-    float nearestDepth = max(max(a,b),max(c,d));
+    float nearestDepth = min(min(a,b),min(c,d));
     
     // float a = _resourceMap.Load(float3(srcuv,1)).x;
     
-    _destinateMap[id.xy] = a;
+    _destinateMap[id.xy] = nearestDepth;
     
 }
