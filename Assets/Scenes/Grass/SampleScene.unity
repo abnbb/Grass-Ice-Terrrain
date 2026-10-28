@@ -351,7 +351,7 @@ MonoBehaviour:
   receiveShadows: 1
   layer: 20
   LODDistance: 12.52
-  boundsExtents: 0.06
+  boundsExtents: 0.8
   grassMatrix: {fileID: 7200000, guid: 8f07d32482aeb8c46a75c621cd193b94, type: 3}
   DepthCulling: {fileID: 7200000, guid: 3f3a65906ac45e24f82e948378208fb8, type: 3}
   GenHiz: {fileID: 7200000, guid: 5d6c239a444c6c64b88fc5f9b35df401, type: 3}

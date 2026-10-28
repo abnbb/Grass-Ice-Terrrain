@@ -240,7 +240,7 @@ public class GrassRendererIndirectByPackedFloat : MonoBehaviour
 
         if (depthTex != null)
         {
-            DepthCulling.SetTexture(CullingKernel, "_CameraDepthTexture", hiZ,0);
+            DepthCulling.SetTexture(CullingKernel, "_CameraDepthTexture", hiZ);
         }
 
 
